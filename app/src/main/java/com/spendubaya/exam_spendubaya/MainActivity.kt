@@ -1,37 +1,50 @@
 package com.spendubaya.exam_spendubaya
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
+import android.content.*
 import android.graphics.Color
-import android.os.Bundle
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.net.Uri
+import android.os.*
+import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
-import android.view.MotionEvent
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.EditText
-import android.widget.Toast
+import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
+import java.text.SimpleDateFormat
+import java.util.*
+
+
 
 class MainActivity : Activity() {
 
+
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var componentName: ComponentName
-    private val exitCode = "Alfaqih94" // Kode keluar aplikasi
+    private lateinit var webView: WebView
+    private lateinit var batteryStatus: TextView
+    private lateinit var timeStatus: TextView
+    private lateinit var buttonContainer: LinearLayout
+    private lateinit var maximizeButton: ImageButton
+    private lateinit var mediaPlayer: MediaPlayer
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Setup Device Policy Manager
+        var overlayBlocker = OverlayBlocker(this)
+        overlayBlocker.startOverlay()
+
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         componentName = ComponentName(this, DeviceAdminReceiver::class.java)
 
-        // Cek jika aplikasi memiliki Device Admin
         if (!devicePolicyManager.isAdminActive(componentName)) {
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
@@ -39,70 +52,222 @@ class MainActivity : Activity() {
             }
             startActivity(intent)
         } else {
-            startLockTask() // Aktifkan Screen Pinning
+            startLockTask()
         }
+        startService(Intent(this, AppBlockerService::class.java))
+        blockFloatingApp("com.lwi.android.flapps")
+        killApp("com.lwi.android.flapps")
 
-        // Konfigurasi WebView
-        val webView = findViewById<WebView>(R.id.webView)
+
+        webView = findViewById(R.id.webView)
         webView.webViewClient = WebViewClient()
         webView.settings.javaScriptEnabled = true
-        webView.loadUrl("https://sites.google.com/guru.smp.belajar.id/abd-faqih/home")
+        webView.loadUrl("https://sites.google.com/view/examspendubaya")
 
-        // Tambahkan tombol Exit dengan ikon "X"
+        buttonContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(10, 10, 10, 10)
+            visibility = LinearLayout.VISIBLE
+        }
+        val rootView = findViewById<FrameLayout>(android.R.id.content)
+        rootView.addView(buttonContainer)
+
+        addNavigationButtons()
+        addBatteryAndTimeDisplay()
+        addMinimizeButton()
         addExitButton()
+        addMaximizeButton()
     }
 
-    // Fungsi untuk menambahkan tombol Exit dengan ikon X
-    private fun addExitButton() {
-        val exitButton = ImageButton(this)
-        exitButton.setImageResource(R.drawable.exit_icon) // Ikon X
-        exitButton.setBackgroundColor(Color.argb(80, 0, 0, 0)) // Transparan hitam samar
-        exitButton.layoutParams = FrameLayout.LayoutParams(100, 100) // Ukuran lebih besar
-
-        // Posisi tombol di pojok kanan atas
-        val params = FrameLayout.LayoutParams(
-            100, // Lebar tombol
-            100, // Tinggi tombol
-            Gravity.TOP or Gravity.END // Pojok kanan atas
-        )
-        params.setMargins(20, 20, 20, 20) // Margin dari tepi layar
-
-        // Menambahkan tombol ke root layout
-        val rootView = findViewById<FrameLayout>(R.id.rootLayout)
-        rootView.addView(exitButton, params)
-
-        // Event klik tombol Exit
-        exitButton.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                showExitDialog()
+    private fun blockFloatingApp(packageName: String) {
+        if (devicePolicyManager.isAdminActive(componentName)) {
+            try {
+                devicePolicyManager.setApplicationHidden(componentName, packageName, true)
+                Toast.makeText(this, "Berhasil memblokir $packageName", Toast.LENGTH_SHORT).show()
+                val overlayView = OverlayView(this, packageName)
+                overlayView.show()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error blocking app: ${e.message}")
+                Toast.makeText(this, "Gagal memblokir $packageName: ${e.message}", Toast.LENGTH_SHORT).show()
             }
-            true
+        } else {
+            Toast.makeText(this, "Device admin is not active", Toast.LENGTH_SHORT).show()
         }
     }
+    private fun killApp(packageName: String) {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        activityManager.killBackgroundProcesses(packageName)
+    }
 
-    // Menampilkan Dialog untuk memasukkan kode keluar
+
+
+    private fun getExitCode(): String {
+        val dateFormat = SimpleDateFormat("ddMMyy", Locale.getDefault())
+        return dateFormat.format(Date())
+    }
+
     private fun showExitDialog() {
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Apakah yakin ingin keluar?")
+        val input = EditText(this).apply {
+            hint = "Masukkan Kode"
+            setTextColor(Color.RED)
+            textSize = 40f
+            setHintTextColor(Color.DKGRAY)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER // Hanya angka
+            setTypeface(typeface, android.graphics.Typeface.BOLD) // Teks tebal
+            setPadding(50, 40, 50, 40)
+            setBackgroundResource(android.R.drawable.editbox_background)
+        }
 
-        val input = EditText(this)
-        input.hint = "Masukkan kode Alfaqih94"
-        builder.setView(input)
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 80, 40)
+            setBackgroundColor(Color.WHITE)
+            addView(input)
+        }
 
-        builder.setPositiveButton("KELUAR") { _, _ ->
-            val enteredCode = input.text.toString()
-            if (enteredCode == exitCode) {
-                stopLockTask() // Keluar dari Screen Pinning
-                finishAffinity() // Tutup aplikasi sepenuhnya
-            } else {
-                Toast.makeText(this, "Kode yang dimasukkan salah!", Toast.LENGTH_SHORT).show()
+        AlertDialog.Builder(this)
+            .setTitle("Konfirmasi Keluar")
+            .setMessage("Masukkan kode unik untuk keluar")
+            .setView(layout)
+            .setPositiveButton("KELUAR") { _, _ ->
+                if (input.text.toString() == getExitCode()) {
+                    stopLockTask()
+                    finishAffinity()
+                } else {
+                    Toast.makeText(this, "Kode salah!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setIcon(R.drawable.exit_icon) // Tambahkan ikon untuk tampilan menarik
+            .show()
+    }
+
+
+    private fun addNavigationButtons() {
+        val buttons = listOf(Pair(R.drawable.back_icon) { webView.goBack() }, Pair(R.drawable.next_icon) { webView.goForward() }, Pair(R.drawable.refresh_icon) { webView.reload() })
+
+        for ((icon, action) in buttons) {
+            val button = ImageButton(this).apply {
+                setImageResource(icon)
+                setBackgroundColor(Color.TRANSPARENT)
+                setOnClickListener { action() }
+            }
+            buttonContainer.addView(button)
+        }
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        playExitSound()
+    }
+
+    private fun playExitSound() {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+
+        mediaPlayer = MediaPlayer.create(this, R.raw.alert_sound)
+        mediaPlayer.setOnCompletionListener {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0)
+        }
+        mediaPlayer.start()
+    }
+    private fun addBatteryAndTimeDisplay() {
+        val statusLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(20,20,20,20)
+        }
+
+        val batteryLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val batteryIcon = ImageView(this).apply {
+            setImageResource(R.drawable.battery_icon)
+        }
+        batteryStatus = TextView(this).apply {
+            setTextColor(Color.DKGRAY)
+            textSize = 14f
+        }
+
+        val timeLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val timeIcon = ImageView(this).apply {
+            setImageResource(R.drawable.clock_icon)
+        }
+        timeStatus = TextView(this).apply {
+            setTextColor(Color.DKGRAY)
+            textSize = 14f
+        }
+
+        batteryLayout.addView(batteryIcon)
+        batteryLayout.addView(batteryStatus)
+        timeLayout.addView(timeIcon)
+        timeLayout.addView(timeStatus)
+
+        statusLayout.addView(batteryLayout)
+        statusLayout.addView(timeLayout)
+        buttonContainer.addView(statusLayout)
+        updateBatteryAndTime()
+    }
+
+    private fun updateBatteryAndTime() {
+        val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        batteryStatus.text = "$level%"
+
+        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+        timeStatus.text = timeFormat.format(Date())
+
+        Handler(Looper.getMainLooper()).postDelayed({ updateBatteryAndTime() }, 60000)
+    }
+
+    private fun addMinimizeButton() {
+        val minimizeButton = ImageButton(this).apply {
+            setImageResource(R.drawable.minimize_icon)
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnClickListener {
+                buttonContainer.visibility = LinearLayout.GONE
+                maximizeButton.visibility = ImageButton.VISIBLE
             }
         }
+        buttonContainer.addView(minimizeButton)
+    }
 
-        builder.setNegativeButton("BATAL") { dialog, _ ->
-            dialog.cancel()
+    private fun addExitButton() {
+        val exitButton = ImageButton(this).apply {
+            setImageResource(R.drawable.exit_icon)
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnClickListener { showExitDialog() }
         }
+        buttonContainer.addView(exitButton)
+    }
 
-        builder.show()
+    private fun addMaximizeButton() {
+        maximizeButton = ImageButton(this).apply {
+            setImageResource(R.drawable.maximize_icon)
+            setBackgroundColor(Color.TRANSPARENT)
+            visibility = ImageButton.GONE
+            setOnClickListener {
+                buttonContainer.visibility = LinearLayout.VISIBLE
+                buttonContainer.setBackgroundColor(Color.TRANSPARENT) // Ubah agar transparan, bukan buram
+                this.visibility = ImageButton.GONE
+            }
+
+        }
+        val layoutParams = FrameLayout.LayoutParams(120, 120).apply {
+            gravity = Gravity.TOP or Gravity.END
+            marginEnd = 40
+            topMargin = 40
+        }
+        val rootView = findViewById<FrameLayout>(android.R.id.content)
+        rootView.addView(maximizeButton, layoutParams)
     }
 }
