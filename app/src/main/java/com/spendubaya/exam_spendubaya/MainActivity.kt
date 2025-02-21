@@ -16,11 +16,19 @@ import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.*
 import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.view.KeyEvent
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.widget.Toast
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 
 class MainActivity : Activity() {
@@ -33,6 +41,31 @@ class MainActivity : Activity() {
     private lateinit var buttonContainer: LinearLayout
     private lateinit var maximizeButton: ImageButton
     private lateinit var mediaPlayer: MediaPlayer
+    private val hideHandler = Handler(Looper.getMainLooper())
+    private val hideRunnable = Runnable { hideSystemUI() }
+
+
+    // Di MainActivity
+    private fun disableKeyguard() {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Untuk Android 8.0+ (API 26)
+            keyguardManager.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() {
+                    // Keyguard berhasil dinonaktifkan
+                }
+
+                override fun onDismissCancelled() {
+                    // Handle jika user membatalkan
+                }
+            })
+        } else {
+            // Untuk Android 5.0+ (API 21)
+            @Suppress("DEPRECATION")
+            keyguardManager.newKeyguardLock("MyApp").disableKeyguard()
+        }
+    }
 
     object OverlayDetection {
         fun detectOverlayApps(context: Context) {
@@ -54,14 +87,27 @@ class MainActivity : Activity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Mencegah recent apps dan screenshot
+
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Sembunyikan tombol navigasi dan status bar
+        hideSystemUI()
 
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+        OverlayDetection.detectOverlayApps(this)
 
         if (!devicePolicyManager.isAdminActive(componentName)) {
+            blockAssistantApps()
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
                 putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Aktifkan untuk Kiosk Mode")
@@ -91,6 +137,95 @@ class MainActivity : Activity() {
         addMinimizeButton()
         addExitButton()
         addMaximizeButton()
+    }
+    override fun onResume() {
+        super.onResume()
+        hideHandler.postDelayed(hideRunnable, 100)
+        if (devicePolicyManager.isAdminActive(componentName)) {
+            startLockTask() // Pastikan mode terkunci tetap berjalan
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_HOME,
+            KeyEvent.KEYCODE_APP_SWITCH -> true
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_HOME) {
+            return true
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_HOME) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+    override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_MULTIPLE) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_BACK,
+                KeyEvent.KEYCODE_APP_SWITCH -> return true
+            }
+        }
+        return super.onKeyMultiple(keyCode, repeatCount, event)
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val intent = Intent(this, MainActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startActivity(intent)
+    }
+
+    @SuppressLint("WrongConstant")
+    private fun hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Untuk Android 11 (API 30) ke atas
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            // Untuk Android 10 (API 29) ke bawah
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                            View.SYSTEM_UI_FLAG_FULLSCREEN
+                    )
+        }
+    }
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemUI()
+            startLockTask()
+        } else {
+            val intent = Intent(this, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+        }
+    }
+    private fun blockAssistantApps() {
+        val blockedPackages = arrayOf(
+            "com.samsung.android.bixby.agent", // Samsung Bixby
+            "com.google.android.apps.googleassistant", // Google Assistant
+            "com.miui.voiceassist", // Xiaomi Assistant
+            "com.huawei.vassistant", // Huawei Celia
+            "com.coloros.voiceassistant", // Oppo Breeno
+            "com.vivo.assistant" // Vivo Jovi
+        )
+
+        for (packageName in blockedPackages) {
+            devicePolicyManager.setApplicationHidden(componentName, packageName, true)
+        }
     }
     private fun getExitCode(): String {
         val dateFormat = SimpleDateFormat("ddMMyy", Locale.getDefault())
@@ -131,7 +266,6 @@ class MainActivity : Activity() {
             .setIcon(R.drawable.exit_icon) // Tambahkan ikon untuk tampilan menarik
             .show()
     }
-
 
     private fun addNavigationButtons() {
         val buttons = listOf(Pair(R.drawable.back_icon) { webView.goBack() }, Pair(R.drawable.next_icon) { webView.goForward() }, Pair(R.drawable.refresh_icon) { webView.reload() })
