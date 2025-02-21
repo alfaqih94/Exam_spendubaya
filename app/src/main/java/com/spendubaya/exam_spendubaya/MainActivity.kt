@@ -1,29 +1,22 @@
 package com.spendubaya.exam_spendubaya
 
+import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
 import android.content.*
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.net.Uri
 import android.os.*
-import android.provider.Settings
-import android.util.Log
 import android.view.Gravity
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
-import androidx.activity.result.contract.ActivityResultContracts
 import java.text.SimpleDateFormat
 import java.util.*
 
-
-
 class MainActivity : Activity() {
-
 
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var componentName: ComponentName
@@ -39,9 +32,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        var overlayBlocker = OverlayBlocker(this)
-        overlayBlocker.startOverlay()
-
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         componentName = ComponentName(this, DeviceAdminReceiver::class.java)
 
@@ -54,14 +44,9 @@ class MainActivity : Activity() {
         } else {
             startLockTask()
         }
-        startService(Intent(this, AppBlockerService::class.java))
-        blockFloatingApp("com.lwi.android.flapps")
-        killApp("com.lwi.android.flapps")
-
 
         webView = findViewById(R.id.webView)
         webView.webViewClient = WebViewClient()
-        webView.settings.javaScriptEnabled = true
         webView.loadUrl("https://sites.google.com/view/examspendubaya")
 
         buttonContainer = LinearLayout(this).apply {
@@ -80,29 +65,6 @@ class MainActivity : Activity() {
         addExitButton()
         addMaximizeButton()
     }
-
-    private fun blockFloatingApp(packageName: String) {
-        if (devicePolicyManager.isAdminActive(componentName)) {
-            try {
-                devicePolicyManager.setApplicationHidden(componentName, packageName, true)
-                Toast.makeText(this, "Berhasil memblokir $packageName", Toast.LENGTH_SHORT).show()
-                val overlayView = OverlayView(this, packageName)
-                overlayView.show()
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error blocking app: ${e.message}")
-                Toast.makeText(this, "Gagal memblokir $packageName: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(this, "Device admin is not active", Toast.LENGTH_SHORT).show()
-        }
-    }
-    private fun killApp(packageName: String) {
-        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        activityManager.killBackgroundProcesses(packageName)
-    }
-
-
-
     private fun getExitCode(): String {
         val dateFormat = SimpleDateFormat("ddMMyy", Locale.getDefault())
         return dateFormat.format(Date())
@@ -218,6 +180,7 @@ class MainActivity : Activity() {
         updateBatteryAndTime()
     }
 
+    @SuppressLint("SetTextI18n")
     private fun updateBatteryAndTime() {
         val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1

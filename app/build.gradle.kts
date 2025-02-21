@@ -9,9 +9,9 @@ android {
 
     defaultConfig {
         applicationId = "com.spendubaya.exam_spendubaya"
-        minSdk = 23
+        minSdk = 21
         targetSdk = 35
-        versionCode = 2
+        versionCode = 3
         versionName = "10/10/1994"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
