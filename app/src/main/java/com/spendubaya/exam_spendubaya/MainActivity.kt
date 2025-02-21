@@ -21,7 +21,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
-import com.spendubaya.exam_spendubaya.OverlayDetection
+
 
 class MainActivity : Activity() {
 
@@ -60,7 +60,6 @@ class MainActivity : Activity() {
 
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         componentName = ComponentName(this, DeviceAdminReceiver::class.java)
-        OverlayDetection.detectOverlayApps(this) // Deteksi overlay
 
         if (!devicePolicyManager.isAdminActive(componentName)) {
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {

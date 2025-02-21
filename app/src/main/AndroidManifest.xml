@@ -10,11 +10,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
 
     <queries>
-        <package android:name="com.android.systemui"/>
-        <package android:name="com.whatsapp"/>
+        <package android:name="com.applay.overlay"/>
+        <package android:name="com.mercandalli.android.apps.bubble"/>
         <package android:name="com.lwi.android.flapps"/>
-        <package android:name="com.facebook.orca"/>
-        <package android:name="com.android.chrome"/>
+        <package android:name="com.fossor.panels"/>
+        <package android:name="floatbrowser.floating.browser.float.web.window"/>
         <package android:name="com.miui.freeform"/>
     </queries>
 
@@ -31,24 +31,6 @@
         android:theme="@style/Theme.Exam_spendubaya"
         tools:targetApi="31">
         <!-- Main Activity -->
-
-        <activity
-            android:name=".SplashActivity"
-            android:exported="true"
-            android:theme="@style/Theme.Exam_spendubaya">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:excludeFromRecents="true">
-        </activity>
-
-        <!-- Device Admin Receiver -->
         <receiver
             android:name=".DeviceAdminReceiver"
             android:exported="true"
@@ -63,5 +45,37 @@
 
         <!-- Kiosk Service -->
         <service android:name=".KioskService" />
+
+        <activity
+            android:name=".LoginPage"
+            android:exported="true"
+            android:theme="@style/Theme.Exam_spendubaya">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ErrorPage1"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="false">
+        </activity>
+        <activity
+            android:name=".ErrorPage2"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="false">
+        </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true">
+        </activity>
+
+        <!-- Device Admin Receiver -->
+
     </application>
 </manifest>
