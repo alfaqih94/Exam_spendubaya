@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.spendubaya.exam_spendubaya"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 35
         versionCode = 3
         versionName = "10/10/1994"

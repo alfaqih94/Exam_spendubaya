@@ -15,6 +15,13 @@ import android.webkit.WebViewClient
 import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.*
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
+import com.spendubaya.exam_spendubaya.OverlayDetection
 
 class MainActivity : Activity() {
 
@@ -27,6 +34,25 @@ class MainActivity : Activity() {
     private lateinit var maximizeButton: ImageButton
     private lateinit var mediaPlayer: MediaPlayer
 
+    object OverlayDetection {
+        fun detectOverlayApps(context: Context) {
+            if (Settings.canDrawOverlays(context)) {
+                val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val runningTasks = activityManager.runningAppProcesses
+
+                for (task in runningTasks) {
+                    if (task.processName.contains("flapps")) { // Deteksi Floating Apps
+                        Toast.makeText(context, "Aplikasi overlay terdeteksi! Harap matikan.", Toast.LENGTH_LONG).show()
+
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName))
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        context.startActivity(intent)
+                        break
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +60,7 @@ class MainActivity : Activity() {
 
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+        OverlayDetection.detectOverlayApps(this) // Deteksi overlay
 
         if (!devicePolicyManager.isAdminActive(componentName)) {
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
@@ -47,6 +74,7 @@ class MainActivity : Activity() {
 
         webView = findViewById(R.id.webView)
         webView.webViewClient = WebViewClient()
+        webView.settings.javaScriptEnabled = true
         webView.loadUrl("https://sites.google.com/view/examspendubaya")
 
         buttonContainer = LinearLayout(this).apply {

@@ -9,6 +9,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
 
+    <queries>
+        <package android:name="com.android.systemui"/>
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.lwi.android.flapps"/>
+        <package android:name="com.facebook.orca"/>
+        <package android:name="com.android.chrome"/>
+        <package android:name="com.miui.freeform"/>
+    </queries>
 
     <application
         android:allowBackup="true"
